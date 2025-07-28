@@ -1,6 +1,7 @@
 <html>
 <!-- Chatbase Chat Bubble -->
 <!-- Chat Bubble Embed -->
+<!-- Chat Bubble Embed -->
 <div id="chat-bubble-container"></div>
 <script>
   (function() {
@@ -12,8 +13,123 @@
       userMessageColor: "#3B81F6",
       bubbleButtonColor: "#000000",
       alignment: "right",
-      apiUrl: "https://uqcaakndeekmpthpluel.supabase.co"
+      apiUrl: "https://uqcaakndeekmpthpluel.supabase.co",
+      apiKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxY2Fha25kZWVrbXB0aHBsdWVsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM0NTIxMjUsImV4cCI6MjA2OTAyODEyNX0.MH9s2EmdRtFkTd915UneF0Gm01JZqSvXUg6zL_7l97Q"
     };
+
+    let currentConversationId = null;
+    let sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+    // Supabase client setup
+    const supabaseUrl = config.apiUrl;
+    const supabaseKey = config.apiKey;
+    
+    // Simple fetch-based Supabase client
+    const supabaseClient = {
+      from: (table) => ({
+        insert: async (data) => {
+          const response = await fetch(`${supabaseUrl}/rest/v1/${table}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify(data)
+          });
+          return await response.json();
+        },
+        update: async (data) => ({
+          eq: (column, value) => ({
+            execute: async () => {
+              const response = await fetch(`${supabaseUrl}/rest/v1/${table}?${column}=eq.${value}`, {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': supabaseKey,
+                  'Authorization': `Bearer ${supabaseKey}`
+                },
+                body: JSON.stringify(data)
+              });
+              return await response.json();
+            }
+          })
+        })
+      })
+    };
+
+    // Create new conversation
+    const createConversation = async () => {
+      try {
+        const conversationData = {
+          agent_id: config.chatbotId,
+          session_id: sessionId,
+          status: 'active',
+          started_at: new Date().toISOString(),
+          message_count: 0
+        };
+        
+        const result = await supabaseClient.from('conversations').insert(conversationData);
+        if (result && result.length > 0) {
+          currentConversationId = result[0].id;
+        }
+      } catch (error) {
+        console.error('Error creating conversation:', error);
+      }
+    };
+
+    // Save message to database
+    const saveMessage = async (role, content) => {
+      if (!currentConversationId) return;
+      
+      try {
+        const messageData = {
+          conversation_id: currentConversationId,
+          role: role,
+          content: content,
+          timestamp: new Date().toISOString()
+        };
+        
+        await supabaseClient.from('messages').insert(messageData);
+        
+        // Update conversation message count
+        await supabaseClient.from('conversations')
+          .update({ 
+            message_count: document.querySelectorAll('#chat-messages > div').length,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', currentConversationId)
+          .execute();
+      } catch (error) {
+        console.error('Error saving message:', error);
+      }
+    };
+
+    // End conversation
+    const endConversation = async () => {
+      if (!currentConversationId) return;
+      
+      try {
+        const startTime = new Date(sessionStartTime);
+        const endTime = new Date();
+        const duration = Math.floor((endTime - startTime) / 1000);
+        
+        await supabaseClient.from('conversations')
+          .update({
+            status: 'ended',
+            ended_at: endTime.toISOString(),
+            duration: duration,
+            evaluation_result: 'Successful'
+          })
+          .eq('id', currentConversationId)
+          .execute();
+      } catch (error) {
+        console.error('Error ending conversation:', error);
+      }
+    };
+
+    let sessionStartTime = Date.now();
 
     // Create chat bubble HTML
     const createChatBubble = () => {
@@ -73,7 +189,7 @@
               font-weight: bold;
             ">A</div>
             <span style="font-weight: 500;">Assistant</span>
-            <button onclick="toggleChat()" style="
+            <button onclick="closeChat()" style="
               margin-left: auto;
               background: none;
               border: none;
@@ -138,10 +254,27 @@
     };
 
     // Toggle chat window
-    window.toggleChat = () => {
+    window.toggleChat = async () => {
       const chatWindow = document.getElementById('chat-window');
       const isVisible = chatWindow.style.display === 'flex';
+      
+      if (!isVisible && !currentConversationId) {
+        await createConversation();
+        sessionStartTime = Date.now();
+      }
+      
       chatWindow.style.display = isVisible ? 'none' : 'flex';
+    };
+
+    // Close chat and end conversation
+    window.closeChat = async () => {
+      const chatWindow = document.getElementById('chat-window');
+      chatWindow.style.display = 'none';
+      
+      if (currentConversationId) {
+        await endConversation();
+        currentConversationId = null;
+      }
     };
 
     // Send message function
@@ -166,11 +299,15 @@
       userMessage.textContent = message;
       messagesContainer.appendChild(userMessage);
       
+      // Save user message
+      await saveMessage('user', message);
+      
       input.value = '';
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-      // Simulate bot response (replace with actual API call)
-      setTimeout(() => {
+      // Simulate bot response
+      setTimeout(async () => {
+        const botResponse = "Thanks for your message! This is a demo response.";
         const botMessage = document.createElement('div');
         botMessage.style.cssText = `
           background: #f1f5f9;
@@ -178,9 +315,12 @@
           border-radius: 12px;
           max-width: 80%;
         `;
-        botMessage.textContent = "Thanks for your message! This is a demo response.";
+        botMessage.textContent = botResponse;
         messagesContainer.appendChild(botMessage);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // Save bot message
+        await saveMessage('assistant', botResponse);
       }, 1000);
     };
 

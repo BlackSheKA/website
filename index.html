@@ -1,20 +1,196 @@
 <html>
 <!-- Chatbase Chat Bubble -->
+<!-- Chat Bubble Embed -->
+<div id="chat-bubble-container"></div>
 <script>
-  window.embeddedChatbotConfig = {
-    chatbotId: "your-agent-id",
-    domain: "1d4ddf87-895a-4048-bd28-063cc947581c.canvases.tempo.build",
-    theme: "light",
-    userMessageColor: "#3B81F6",
-    bubbleButtonColor: "#000000",
-    alignment: "right"
-  }
-</script>
-<script
-  src="https://www.chatbase.co/embed.min.js"
-  chatbotId="your-agent-id"
-  domain="www.chatbase.co"
-  defer>
+  (function() {
+    // Configuration
+    const config = {
+      chatbotId: "your-agent-id",
+      domain: "1d4ddf87-895a-4048-bd28-063cc947581c.canvases.tempo.build",
+      theme: "light",
+      userMessageColor: "#3B81F6",
+      bubbleButtonColor: "#000000",
+      alignment: "right",
+      apiUrl: "https://uqcaakndeekmpthpluel.supabase.co"
+    };
+
+    // Create chat bubble HTML
+    const createChatBubble = () => {
+      const bubbleHtml = `
+        <div id="chat-bubble" style="
+          position: fixed;
+          bottom: 20px;
+          ${config.alignment === 'left' ? 'left: 20px;' : 'right: 20px;'}
+          width: 60px;
+          height: 60px;
+          background-color: ${config.bubbleButtonColor};
+          border-radius: 50%;
+          cursor: pointer;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          transition: all 0.3s ease;
+        " onclick="toggleChat()">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        
+        <div id="chat-window" style="
+          position: fixed;
+          bottom: 90px;
+          ${config.alignment === 'left' ? 'left: 20px;' : 'right: 20px;'}
+          width: 350px;
+          height: 500px;
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+          display: none;
+          flex-direction: column;
+          z-index: 9998;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        ">
+          <div style="
+            background: ${config.userMessageColor};
+            color: white;
+            padding: 16px;
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+          ">
+            <div style="
+              width: 32px;
+              height: 32px;
+              background: rgba(255,255,255,0.2);
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-weight: bold;
+            ">A</div>
+            <span style="font-weight: 500;">Assistant</span>
+            <button onclick="toggleChat()" style="
+              margin-left: auto;
+              background: none;
+              border: none;
+              color: white;
+              cursor: pointer;
+              font-size: 18px;
+            ">×</button>
+          </div>
+          
+          <div id="chat-messages" style="
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+          ">
+            <div style="
+              background: #f1f5f9;
+              padding: 12px;
+              border-radius: 12px;
+              max-width: 80%;
+            ">
+              Hi! What can I help you with?
+            </div>
+          </div>
+          
+          <div style="
+            padding: 16px;
+            border-top: 1px solid #e2e8f0;
+          ">
+            <div style="display: flex; gap: 8px;">
+              <input 
+                id="chat-input" 
+                type="text" 
+                placeholder="Message..."
+                style="
+                  flex: 1;
+                  padding: 12px;
+                  border: 1px solid #e2e8f0;
+                  border-radius: 8px;
+                  outline: none;
+                  font-size: 14px;
+                "
+                onkeypress="if(event.key==='Enter') sendMessage()"
+              />
+              <button onclick="sendMessage()" style="
+                background: ${config.userMessageColor};
+                color: white;
+                border: none;
+                padding: 12px 16px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 500;
+              ">Send</button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.getElementById('chat-bubble-container').innerHTML = bubbleHtml;
+    };
+
+    // Toggle chat window
+    window.toggleChat = () => {
+      const chatWindow = document.getElementById('chat-window');
+      const isVisible = chatWindow.style.display === 'flex';
+      chatWindow.style.display = isVisible ? 'none' : 'flex';
+    };
+
+    // Send message function
+    window.sendMessage = async () => {
+      const input = document.getElementById('chat-input');
+      const message = input.value.trim();
+      if (!message) return;
+
+      const messagesContainer = document.getElementById('chat-messages');
+      
+      // Add user message
+      const userMessage = document.createElement('div');
+      userMessage.style.cssText = `
+        background: ${config.userMessageColor};
+        color: white;
+        padding: 12px;
+        border-radius: 12px;
+        max-width: 80%;
+        margin-left: auto;
+        text-align: right;
+      `;
+      userMessage.textContent = message;
+      messagesContainer.appendChild(userMessage);
+      
+      input.value = '';
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+      // Simulate bot response (replace with actual API call)
+      setTimeout(() => {
+        const botMessage = document.createElement('div');
+        botMessage.style.cssText = `
+          background: #f1f5f9;
+          padding: 12px;
+          border-radius: 12px;
+          max-width: 80%;
+        `;
+        botMessage.textContent = "Thanks for your message! This is a demo response.";
+        messagesContainer.appendChild(botMessage);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }, 1000);
+    };
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', createChatBubble);
+    } else {
+      createChatBubble();
+    }
+  })();
 </script>
     
     before
